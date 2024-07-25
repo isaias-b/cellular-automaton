@@ -35,7 +35,7 @@ struct Cell {
 struct Grid {
     width: usize,
     height: usize,
-    cells: Vec<Vec<Cell>>,
+    cells: Vec<Cell>,
     entity: Option<Entity>,
 }
 
@@ -77,9 +77,26 @@ struct RGBA {
 }
 
 impl Grid {
+    #[inline(always)]
+    fn index(&self, x: usize, y: usize) -> usize {
+        y * self.width + x
+    }
+
+    #[inline(always)]
+    fn get(&self, x: usize, y: usize) -> &Cell {
+        &self.cells[self.index(x, y)]
+    }
+
+    #[inline(always)]
+    fn get_mut(&mut self, x: usize, y: usize) -> &mut Cell {
+        let index = self.index(x, y);
+        &mut self.cells[index]
+    }
+
     fn convolve(&mut self, kernel: &Kernel) {
         let mut new_cells = self.cells.clone();
         let kc = kernel.center();
+
         let mut new_color;
         for y in 0..self.height {
             for x in 0..self.width {
@@ -98,14 +115,15 @@ impl Grid {
                         if dx >= self.width as i32 || dy >= self.height as i32 {
                             continue;
                         }
-                        let cell = &self.cells[dy as usize][dx as usize];
+                        let cell = &self.get(dx as usize, dy as usize);
                         let weight = kernel.cells[ky][kx];
                         new_color.r += cell.color.r() * weight;
                         new_color.g += cell.color.g() * weight;
                         new_color.b += cell.color.b() * weight;
                     }
                 }
-                new_cells[y][x].color = Color::rgba(new_color.r, new_color.g, new_color.b, 1.0);
+                let index = self.index(x, y);
+                new_cells[index].color = Color::rgba(new_color.r, new_color.g, new_color.b, 1.0);
             }
         }
         self.cells = new_cells;
@@ -113,21 +131,17 @@ impl Grid {
     fn new_random(width: usize, height: usize) -> Grid {
         let mut rng = ChaCha8Rng::from_seed([0; 32]);
         let mut cells = vec![
-            vec![
-                Cell {
-                    color: Color::BLACK,
-                };
-                width
-            ];
-            height
+            Cell {
+                color: Color::BLACK,
+            };
+            width * height
         ];
-        for row in cells.iter_mut() {
-            for cell in row.iter_mut() {
-                let r = rng.gen_range(0..255) as f32 / 255.0;
-                let g = rng.gen_range(0..255) as f32 / 255.0;
-                let b = rng.gen_range(0..255) as f32 / 255.0;
-                cell.color = Color::rgb(r, g, b);
-            }
+
+        for cell in cells.iter_mut() {
+            let r = rng.gen_range(0..255) as f32 / 255.0;
+            let g = rng.gen_range(0..255) as f32 / 255.0;
+            let b = rng.gen_range(0..255) as f32 / 255.0;
+            cell.color = Color::rgb(r, g, b);
         }
 
         Grid {
@@ -180,7 +194,7 @@ impl Grid {
         let mut imgbuf = ImageBuffer::new(pwidth as u32, pheight as u32);
         for y in 0..self.height {
             for x in 0..self.width {
-                let cell = &self.cells[y][x];
+                let cell = &self.get(x, y);
                 let color = cell.color;
                 for ty in 0..TILE_SIZE as u32 {
                     for tx in 0..TILE_SIZE as u32 {
@@ -287,7 +301,7 @@ fn main() {
         .insert_resource(ClearColor(BG_COLOR))
         .add_systems(Update, bevy::window::close_on_esc)
         .add_systems(Update, handle_input)
-        .add_systems(Update, measure_frame_time)
+        // .add_systems(Update, measure_frame_time)
         .add_systems(Startup, setup)
         .run();
 }
