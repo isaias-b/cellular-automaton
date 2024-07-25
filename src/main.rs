@@ -5,51 +5,16 @@ use bevy::{
         render_resource::{Extent3d, TextureDimension, TextureFormat},
     },
     sprite::*,
-    transform::commands,
 };
-use image::{GenericImageView, ImageBuffer};
+use image::ImageBuffer;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use std::{path::Path, time::Instant};
+use std::time::Instant;
 
 const BG_COLOR: Color = Color::rgb(0.0, 0.0, 0.0);
 const TILE_SIZE: f32 = 8.0;
 const TILE_GAP: f32 = 2.0;
 const GRID_DIMENSIONS: (usize, usize) = (256, 256);
-
-// struct Image {
-//     width: u32,
-//     height: u32,
-//     grid: Vec<Vec<Color>>,
-// }
-
-#[derive(Component, Debug, Clone, Copy)]
-struct Colored(Color);
-
-// impl Image {
-//     fn from_path(img_path: &Path) -> Image {
-//         let img = image::open(&img_path).expect("Failed to open image");
-
-//         let (width, height) = img.dimensions();
-
-//         let mut grid = vec![vec![Color::BLACK; width as usize]; height as usize];
-
-//         for (x, y, pixel) in img.pixels() {
-//             let r = pixel[0] as f32 / 255.0;
-//             let g = pixel[1] as f32 / 255.0;
-//             let b = pixel[2] as f32 / 255.0;
-//             let a = pixel[3] as f32 / 255.0;
-//             let color = Color::rgba(r, g, b, a);
-//             grid[y as usize][x as usize] = color;
-//         }
-
-//         Image {
-//             width,
-//             height,
-//             grid,
-//         }
-//     }
-// }
 
 macro_rules! color_from_hex {
     ($hex:expr) => {
@@ -61,43 +26,9 @@ macro_rules! color_from_hex {
     };
 }
 
-// blend a color onto another color
-fn blend_color(top: &Color, bottom: &Color) -> Color {
-    let a = top.a() + bottom.a() * (1.0 - top.a());
-    let r = top.r() * top.a() + bottom.r() * (1.0 - top.a()) / a;
-    let g = top.g() * top.a() + bottom.g() * (1.0 - top.a()) / a;
-    let b = top.b() * top.a() + bottom.b() * (1.0 - top.a()) / a;
-    Color::rgba(r, g, b, a)
-}
-
 #[derive(Clone, Copy, Debug)]
 struct Cell {
     color: Color,
-    entity: Option<Entity>,
-}
-impl Cell {
-    fn spawn(
-        &mut self,
-        x: f32,
-        y: f32,
-        commands: &mut Commands,
-        meshes: &mut ResMut<Assets<Mesh>>,
-        materials: &mut ResMut<Assets<ColorMaterial>>,
-    ) -> Entity {
-        let shape = Mesh2dHandle(meshes.add(Rectangle::new(TILE_SIZE, TILE_SIZE)));
-
-        let color = self.color;
-        let square = MaterialMesh2dBundle {
-            mesh: shape,
-            material: materials.add(color),
-            transform: Transform::from_xyz(x, y, 0.0),
-            ..default()
-        };
-
-        let entity = commands.spawn(square).insert(Colored(color)).id();
-        self.entity = Some(entity);
-        entity
-    }
 }
 
 #[derive(Resource)]
@@ -139,7 +70,6 @@ impl Kernel {
     }
 }
 
-type Projection = dyn Fn(&Color, &mut Cell);
 struct RGBA {
     r: f32,
     g: f32,
@@ -147,14 +77,6 @@ struct RGBA {
 }
 
 impl Grid {
-    // fn update_with_image(&mut self, image: &Image, projection: &Projection) {
-    //     for (y, row) in self.cells.iter_mut().enumerate() {
-    //         for (x, cell) in row.iter_mut().enumerate() {
-    //             let img_in_color = &image.grid[y][x];
-    //             projection(img_in_color, cell);
-    //         }
-    //     }
-    // }
     fn convolve(&mut self, kernel: &Kernel) {
         let mut new_cells = self.cells.clone();
         let kc = kernel.center();
@@ -194,7 +116,6 @@ impl Grid {
             vec![
                 Cell {
                     color: Color::BLACK,
-                    entity: None,
                 };
                 width
             ];
@@ -216,44 +137,7 @@ impl Grid {
             entity: None,
         }
     }
-    // fn new_from_image(image: &Image, projection: &Projection) -> Grid {
-    //     let cells = vec![
-    //         vec![
-    //             Cell {
-    //                 color: Color::BLACK,
-    //                 entity: None,
-    //             };
-    //             image.width as usize
-    //         ];
-    //         image.height as usize
-    //     ];
 
-    //     let mut world = Grid {
-    //         width: image.width as usize,
-    //         height: image.height as usize,
-    //         cells,
-    //     };
-    //     world.update_with_image(image, projection);
-    //     world
-    // }
-
-    fn spawn_ui(
-        &mut self,
-        commands: &mut Commands,
-        meshes: &mut ResMut<Assets<Mesh>>,
-        materials: &mut ResMut<Assets<ColorMaterial>>,
-    ) {
-        let len = self.cells.len();
-        let xcenter = (len as f32 * TILE_SIZE + (len - 1) as f32 * TILE_GAP) / 2.0;
-        let ycenter = (len as f32 * TILE_SIZE + (len - 1) as f32 * TILE_GAP) / 2.0;
-        for (y, row) in self.cells.iter_mut().enumerate() {
-            for (x, cell) in row.iter_mut().enumerate() {
-                let xpos = x as f32 * (TILE_SIZE + TILE_GAP);
-                let ypos = (len - y as usize) as f32 * (TILE_SIZE + TILE_GAP);
-                cell.spawn(xpos - xcenter, ypos - ycenter, commands, meshes, materials);
-            }
-        }
-    }
     fn spawn_ui_as_texture(
         &mut self,
         commands: &mut Commands,
@@ -354,16 +238,6 @@ impl Grid {
         let entity = self.entity.unwrap();
         commands.entity(entity).insert(square);
     }
-
-    fn update_ui(&mut self, commands: &mut Commands) {
-        for row in self.cells.iter_mut() {
-            for cell in row.iter_mut() {
-                commands
-                    .entity(cell.entity.unwrap())
-                    .insert(Colored(cell.color));
-            }
-        }
-    }
 }
 
 fn measure_frame_time(mut last_time: Local<Option<Instant>>) {
@@ -383,31 +257,9 @@ fn setup(
     commands.spawn(Camera2dBundle::default());
     let mut world = Grid::new_random(GRID_DIMENSIONS.0, GRID_DIMENSIONS.1);
 
-    // world.spawn_ui(&mut commands, &mut meshes, &mut materials);
     world.spawn_ui_as_texture(&mut commands, &mut meshes, &mut materials, &mut images);
     commands.insert_resource(world);
 }
-
-// fn update_colored(
-//     query: Query<(&Handle<ColorMaterial>, &Colored), Changed<Colored>>,
-//     mut materials: ResMut<Assets<ColorMaterial>>,
-// ) {
-//     let time = Instant::now();
-//     println!(
-//         "{:?}: Updating colored entities {:?}",
-//         time,
-//         query.iter().count()
-//     );
-//     if (query.iter().count() == 0) {
-//         return;
-//     }
-//     for (material, colored) in query.iter() {
-//         let color = colored.0;
-//         let material = materials.get_mut(material).unwrap();
-//         material.color = color;
-//     }
-//     println!("Updating colored entities took {:?}", time.elapsed());
-// }
 
 fn handle_input(
     keys: Res<ButtonInput<KeyCode>>,
@@ -435,7 +287,6 @@ fn main() {
         .insert_resource(ClearColor(BG_COLOR))
         .add_systems(Update, bevy::window::close_on_esc)
         .add_systems(Update, handle_input)
-        // .add_systems(Update, update_colored)
         .add_systems(Update, measure_frame_time)
         .add_systems(Startup, setup)
         .run();
