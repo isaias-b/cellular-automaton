@@ -9,8 +9,9 @@ use bevy::{
 use image::ImageBuffer;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use rayon::prelude::*;
 use rustfft::{num_complex::Complex, num_traits::Zero, FftPlanner};
-use std::time::Instant;
+use std::{collections::HashMap, time::Instant};
 
 const BG_COLOR: Color = Color::rgb(0.0, 0.0, 0.0);
 const TILE_SIZE: f32 = 8.0;
@@ -190,6 +191,55 @@ impl Grid {
         }
     }
 
+    fn convolve_par(&mut self, kernel: &Kernel) {
+        let kc = kernel.center();
+
+        let result: HashMap<usize, Cell> = (0..self.width * self.height)
+            .into_par_iter()
+            .fold(HashMap::new, |mut acc, index| {
+                let y = index / self.width;
+                let x = index % self.width;
+                let mut new_color = RGBA {
+                    r: 0.0,
+                    g: 0.0,
+                    b: 0.0,
+                };
+                for ky in 0..kernel.height {
+                    for kx in 0..kernel.width {
+                        let dx = x as i32 + kx as i32 - kc.x as i32;
+                        let dy = y as i32 + ky as i32 - kc.y as i32;
+                        if dx < 0 || dy < 0 {
+                            continue;
+                        }
+                        if dx >= self.width as i32 || dy >= self.height as i32 {
+                            continue;
+                        }
+                        let cell = &self.get(dx as usize, dy as usize);
+                        let weight = kernel.cells[ky][kx];
+                        new_color.r += cell.color.r() * weight;
+                        new_color.g += cell.color.g() * weight;
+                        new_color.b += cell.color.b() * weight;
+                    }
+                }
+                let new_color = Color::rgba(
+                    new_color.r.clamp(0.0, 1.0),
+                    new_color.g.clamp(0.0, 1.0),
+                    new_color.b.clamp(0.0, 1.0),
+                    1.0,
+                );
+                acc.insert(index, Cell { color: new_color });
+                acc
+            })
+            .reduce(HashMap::new, |mut acc, map| {
+                acc.extend(map);
+                acc
+            });
+
+        for (index, cell) in result {
+            self.cells[index] = cell;
+        }
+    }
+
     fn convolve(&mut self, kernel: &Kernel) {
         let mut new_cells = self.cells.clone();
         let kc = kernel.center();
@@ -225,6 +275,7 @@ impl Grid {
         }
         self.cells = new_cells;
     }
+
     fn center(&self) -> Center {
         Center {
             x: self.width / 2,
@@ -390,7 +441,7 @@ fn handle_input(
     if keys.just_pressed(KeyCode::Space) {
         let kernel = Kernel::gauss7();
         let time = Instant::now();
-        world.convolve_fft(&kernel);
+        world.convolve_par(&kernel);
         println!("Convolution took {:?}", time.elapsed());
         world.update_ui_as_texture(&mut commands, &mut meshes, &mut materials, &mut images);
     }
