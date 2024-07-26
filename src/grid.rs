@@ -31,15 +31,16 @@ pub struct Grid {
 pub struct Kernel {
     width: usize,
     height: usize,
-    cells: Vec<Vec<f32>>,
+    cells: Vec<f32>,
 }
 
 impl Kernel {
     pub fn gauss3() -> Kernel {
+        #[rustfmt::skip]
         let cells = vec![
-            vec![1.0 / 16.0, 2.0 / 16.0, 1.0 / 16.0],
-            vec![2.0 / 16.0, 4.0 / 16.0, 2.0 / 16.0],
-            vec![1.0 / 16.0, 2.0 / 16.0, 1.0 / 16.0],
+            1.0 / 16.0, 2.0 / 16.0, 1.0 / 16.0,
+            2.0 / 16.0, 4.0 / 16.0, 2.0 / 16.0,
+            1.0 / 16.0, 2.0 / 16.0, 1.0 / 16.0,
         ];
         Kernel {
             width: 3,
@@ -49,13 +50,13 @@ impl Kernel {
     }
     pub fn gauss5() -> Kernel {
         #[rustfmt::skip]
-      let cells = vec![
-          vec![1.0 / 256.0, 4.0 / 256.0, 6.0 / 256.0, 4.0 / 256.0, 1.0 / 256.0],
-          vec![4.0 / 256.0, 16.0 / 256.0, 24.0 / 256.0, 16.0 / 256.0, 4.0 / 256.0],
-          vec![6.0 / 256.0, 24.0 / 256.0, 36.0 / 256.0, 24.0 / 256.0, 6.0 / 256.0],
-          vec![4.0 / 256.0, 16.0 / 256.0, 24.0 / 256.0, 16.0 / 256.0, 4.0 / 256.0],
-          vec![1.0 / 256.0, 4.0 / 256.0, 6.0 / 256.0, 4.0 / 256.0, 1.0 / 256.0],
-      ];
+        let cells = vec![
+            1.0 / 256.0, 4.0 / 256.0, 6.0 / 256.0, 4.0 / 256.0, 1.0 / 256.0,
+            4.0 / 256.0, 16.0 / 256.0, 24.0 / 256.0, 16.0 / 256.0, 4.0 / 256.0,
+            6.0 / 256.0, 24.0 / 256.0, 36.0 / 256.0, 24.0 / 256.0, 6.0 / 256.0,
+            4.0 / 256.0, 16.0 / 256.0, 24.0 / 256.0, 16.0 / 256.0, 4.0 / 256.0,
+            1.0 / 256.0, 4.0 / 256.0, 6.0 / 256.0, 4.0 / 256.0, 1.0 / 256.0,
+        ];
         Kernel {
             width: 5,
             height: 5,
@@ -64,15 +65,15 @@ impl Kernel {
     }
     pub fn gauss7() -> Kernel {
         #[rustfmt::skip]
-      let cells = vec![
-          vec![1.0 / 4096.0, 6.0 / 4096.0, 15.0 / 4096.0, 20.0 / 4096.0, 15.0 / 4096.0, 6.0 / 4096.0, 1.0 / 4096.0],
-          vec![6.0 / 4096.0, 36.0 / 4096.0, 90.0 / 4096.0, 120.0 / 4096.0, 90.0 / 4096.0, 36.0 / 4096.0, 6.0 / 4096.0],
-          vec![15.0 / 4096.0, 90.0 / 4096.0, 225.0 / 4096.0, 300.0 / 4096.0, 225.0 / 4096.0, 90.0 / 4096.0, 15.0 / 4096.0],
-          vec![20.0 / 4096.0, 120.0 / 4096.0, 300.0 / 4096.0, 400.0 / 4096.0, 300.0 / 4096.0, 120.0 / 4096.0, 20.0 / 4096.0],
-          vec![15.0 / 4096.0, 90.0 / 4096.0, 225.0 / 4096.0, 300.0 / 4096.0, 225.0 / 4096.0, 90.0 / 4096.0, 15.0 / 4096.0],
-          vec![6.0 / 4096.0, 36.0 / 4096.0, 90.0 / 4096.0, 120.0 / 4096.0, 90.0 / 4096.0, 36.0 / 4096.0, 6.0 / 4096.0],
-          vec![1.0 / 4096.0, 6.0 / 4096.0, 15.0 / 4096.0, 20.0 / 4096.0, 15.0 / 4096.0, 6.0 / 4096.0, 1.0 / 4096.0],
-      ];
+        let cells = vec![
+            1.0 / 4096.0, 6.0 / 4096.0, 15.0 / 4096.0, 20.0 / 4096.0, 15.0 / 4096.0, 6.0 / 4096.0, 1.0 / 4096.0,
+            6.0 / 4096.0, 36.0 / 4096.0, 90.0 / 4096.0, 120.0 / 4096.0, 90.0 / 4096.0, 36.0 / 4096.0, 6.0 / 4096.0,
+            15.0 / 4096.0, 90.0 / 4096.0, 225.0 / 4096.0, 300.0 / 4096.0, 225.0 / 4096.0, 90.0 / 4096.0, 15.0 / 4096.0,
+            20.0 / 4096.0, 120.0 / 4096.0, 300.0 / 4096.0, 400.0 / 4096.0, 300.0 / 4096.0, 120.0 / 4096.0, 20.0 / 4096.0,
+            15.0 / 4096.0, 90.0 / 4096.0, 225.0 / 4096.0, 300.0 / 4096.0, 225.0 / 4096.0, 90.0 / 4096.0, 15.0 / 4096.0,
+            6.0 / 4096.0, 36.0 / 4096.0, 90.0 / 4096.0, 120.0 / 4096.0, 90.0 / 4096.0, 36.0 / 4096.0, 6.0 / 4096.0,
+            1.0 / 4096.0, 6.0 / 4096.0, 15.0 / 4096.0, 20.0 / 4096.0, 15.0 / 4096.0, 6.0 / 4096.0, 1.0 / 4096.0,
+        ];
         Kernel {
             width: 7,
             height: 7,
@@ -138,11 +139,11 @@ impl Grid {
             }
         }
 
-        for y in 0..kernel_height {
-            for x in 0..kernel_width {
-                let index = y * padded_width + x;
-                kernel_complex[index] = Complex::new(kernel.cells[y][x], 0.0);
-            }
+        for index in 0..kernel_height * kernel_width {
+            let x = index % kernel_width;
+            let y = index / kernel_width;
+            let padded_index = y * padded_width + x;
+            kernel_complex[padded_index] = Complex::new(kernel.cells[index], 0.0);
         }
         println!("Preparation took {:?}", time.elapsed());
         let time = Instant::now();
@@ -201,23 +202,24 @@ impl Grid {
                     b: 0.0,
                     a: 0.0,
                 };
-                for ky in 0..kernel.height {
-                    for kx in 0..kernel.width {
-                        let dx = x as i32 + kx as i32 - kc.x as i32;
-                        let dy = y as i32 + ky as i32 - kc.y as i32;
-                        if dx < 0 || dy < 0 {
-                            continue;
-                        }
-                        if dx >= self.width as i32 || dy >= self.height as i32 {
-                            continue;
-                        }
-                        let cell = &self.get(dx as usize, dy as usize);
-                        let weight = kernel.cells[ky][kx];
-                        new_color.r += cell.color.r * weight;
-                        new_color.g += cell.color.g * weight;
-                        new_color.b += cell.color.b * weight;
-                        new_color.a += cell.color.a * weight;
+                for k_index in 0..kernel.height * kernel.width {
+                    let kx = k_index % kernel.width;
+                    let ky = k_index / kernel.width;
+
+                    let dx = x as i32 + kx as i32 - kc.x as i32;
+                    let dy = y as i32 + ky as i32 - kc.y as i32;
+                    if dx < 0 || dy < 0 {
+                        continue;
                     }
+                    if dx >= self.width as i32 || dy >= self.height as i32 {
+                        continue;
+                    }
+                    let cell = &self.get(dx as usize, dy as usize);
+                    let weight = kernel.cells[k_index];
+                    new_color.r += cell.color.r * weight;
+                    new_color.g += cell.color.g * weight;
+                    new_color.b += cell.color.b * weight;
+                    new_color.a += cell.color.a * weight;
                 }
                 let new_color = RGBA {
                     r: new_color.r.clamp(0.0, 1.0),
@@ -243,34 +245,35 @@ impl Grid {
         let kc = kernel.center();
 
         let mut new_color;
-        for y in 0..self.height {
-            for x in 0..self.width {
-                new_color = RGBA {
-                    r: 0.0,
-                    g: 0.0,
-                    b: 0.0,
-                    a: 0.0,
-                };
-                for ky in 0..kernel.height {
-                    for kx in 0..kernel.width {
-                        let dx = x as i32 + kx as i32 - kc.x as i32;
-                        let dy = y as i32 + ky as i32 - kc.y as i32;
-                        if dx < 0 || dy < 0 {
-                            continue;
-                        }
-                        if dx >= self.width as i32 || dy >= self.height as i32 {
-                            continue;
-                        }
-                        let cell = &self.get(dx as usize, dy as usize);
-                        let weight = kernel.cells[ky][kx];
-                        new_color.r += cell.color.r * weight;
-                        new_color.g += cell.color.g * weight;
-                        new_color.b += cell.color.b * weight;
-                    }
+        for index in 0..self.height * self.width {
+            let x = index % self.width;
+            let y = index / self.width;
+            new_color = RGBA {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 0.0,
+            };
+            for k_index in 0..kernel.height * kernel.width {
+                let kx = k_index % kernel.width;
+                let ky = k_index / kernel.width;
+                let dx = x as i32 + kx as i32 - kc.x as i32;
+                let dy = y as i32 + ky as i32 - kc.y as i32;
+                if dx < 0 || dy < 0 {
+                    continue;
                 }
-                let index = self.index(x, y);
-                new_cells[index].color = new_color;
+                if dx >= self.width as i32 || dy >= self.height as i32 {
+                    continue;
+                }
+                let cell = &self.get(dx as usize, dy as usize);
+                let weight = kernel.cells[k_index];
+                new_color.r += cell.color.r * weight;
+                new_color.g += cell.color.g * weight;
+                new_color.b += cell.color.b * weight;
+                new_color.a += cell.color.a * weight;
             }
+            let index = self.index(x, y);
+            new_cells[index].color = new_color;
         }
         self.cells = new_cells;
     }
