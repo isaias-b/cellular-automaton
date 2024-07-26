@@ -2,7 +2,7 @@ use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use rayon::prelude::*;
 use rustfft::{num_complex::Complex, num_traits::Zero, FftPlanner};
-use std::{collections::HashMap, time::Instant};
+use std::time::Instant;
 
 #[derive(Clone, Copy, Debug)]
 pub struct RGBA {
@@ -12,10 +12,6 @@ pub struct RGBA {
     pub a: f32,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct Cell {
-    pub color: RGBA,
-}
 pub struct Center {
     pub x: usize,
     pub y: usize,
@@ -85,21 +81,28 @@ impl Kernel {
     }
 }
 
-impl Grid<Cell> {
+impl Grid<RGBA> {
     #[inline(always)]
     pub fn index(&self, x: usize, y: usize) -> usize {
         y * self.width + x
     }
 
     #[inline(always)]
-    pub fn get(&self, x: usize, y: usize) -> &Cell {
+    pub fn get(&self, x: usize, y: usize) -> &RGBA {
         &self.cells[self.index(x, y)]
     }
 
     #[inline(always)]
-    pub fn get_mut(&mut self, x: usize, y: usize) -> &mut Cell {
+    pub fn get_mut(&mut self, x: usize, y: usize) -> &mut RGBA {
         let index = self.index(x, y);
         &mut self.cells[index]
+    }
+
+    pub fn center(&self) -> Center {
+        Center {
+            x: self.width / 2,
+            y: self.height / 2,
+        }
     }
 
     pub fn convolve_fft(&mut self, kernel: &Kernel) {
@@ -127,7 +130,7 @@ impl Grid<Cell> {
         for y in 0..grid_height {
             for x in 0..grid_width {
                 let index = y * padded_width + x;
-                let color = self.get(x, y).color;
+                let color = self.get(x, y);
                 grid_r[index] = Complex::new(color.r, 0.0);
                 grid_g[index] = Complex::new(color.g, 0.0);
                 grid_b[index] = Complex::new(color.b, 0.0);
@@ -176,10 +179,10 @@ impl Grid<Cell> {
                 let a_value = grid_a[index].re / (padded_width * padded_height) as f32;
 
                 let cell = self.get_mut(x, y);
-                cell.color.r = r_value.clamp(0.0, 1.0);
-                cell.color.g = g_value.clamp(0.0, 1.0);
-                cell.color.b = b_value.clamp(0.0, 1.0);
-                cell.color.a = a_value.clamp(0.0, 1.0);
+                cell.r = r_value.clamp(0.0, 1.0);
+                cell.g = g_value.clamp(0.0, 1.0);
+                cell.b = b_value.clamp(0.0, 1.0);
+                cell.a = a_value.clamp(0.0, 1.0);
             }
         }
     }
@@ -190,13 +193,11 @@ impl Grid<Cell> {
         let height = self.height;
 
         let mut new_cells = vec![
-            Cell {
-                color: RGBA {
-                    r: 0.0,
-                    g: 0.0,
-                    b: 0.0,
-                    a: 0.0
-                }
+            RGBA {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 0.0
             };
             width * height
         ];
@@ -221,21 +222,19 @@ impl Grid<Cell> {
                             if dx >= 0 && dx < width as isize && dy >= 0 && dy < height as isize {
                                 let cell = &self.get(dx as usize, dy as usize);
                                 let weight = kernel.cells[ky * kernel.width + kx];
-                                new_color.r += cell.color.r * weight;
-                                new_color.g += cell.color.g * weight;
-                                new_color.b += cell.color.b * weight;
-                                new_color.a += cell.color.a * weight;
+                                new_color.r += cell.r * weight;
+                                new_color.g += cell.g * weight;
+                                new_color.b += cell.b * weight;
+                                new_color.a += cell.a * weight;
                             }
                         }
                     }
 
-                    row[x] = Cell {
-                        color: RGBA {
-                            r: new_color.r.clamp(0.0, 1.0),
-                            g: new_color.g.clamp(0.0, 1.0),
-                            b: new_color.b.clamp(0.0, 1.0),
-                            a: new_color.a.clamp(0.0, 1.0),
-                        },
+                    row[x] = RGBA {
+                        r: new_color.r.clamp(0.0, 1.0),
+                        g: new_color.g.clamp(0.0, 1.0),
+                        b: new_color.b.clamp(0.0, 1.0),
+                        a: new_color.a.clamp(0.0, 1.0),
                     };
                 }
             });
@@ -270,43 +269,34 @@ impl Grid<Cell> {
                 }
                 let cell = &self.get(dx as usize, dy as usize);
                 let weight = kernel.cells[k_index];
-                new_color.r += cell.color.r * weight;
-                new_color.g += cell.color.g * weight;
-                new_color.b += cell.color.b * weight;
-                new_color.a += cell.color.a * weight;
+                new_color.r += cell.r * weight;
+                new_color.g += cell.g * weight;
+                new_color.b += cell.b * weight;
+                new_color.a += cell.a * weight;
             }
             let index = self.index(x, y);
-            new_cells[index].color = new_color;
+            new_cells[index] = new_color;
         }
         self.cells = new_cells;
     }
 
-    pub fn center(&self) -> Center {
-        Center {
-            x: self.width / 2,
-            y: self.height / 2,
-        }
-    }
-
-    pub fn new_random(width: usize, height: usize) -> Grid<Cell> {
+    pub fn new_random(width: usize, height: usize) -> Grid<RGBA> {
         let mut rng = ChaCha8Rng::from_seed([0; 32]);
         let mut cells = vec![
-            Cell {
-                color: RGBA {
-                    r: 0.0,
-                    g: 0.0,
-                    b: 0.0,
-                    a: 0.0,
-                }
+            RGBA {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 0.0,
             };
             width * height
         ];
 
-        for cell in cells.iter_mut() {
+        for index in 0..width * height {
             let r = rng.gen_range(0..255) as f32 / 255.0;
             let g = rng.gen_range(0..255) as f32 / 255.0;
             let b = rng.gen_range(0..255) as f32 / 255.0;
-            cell.color = RGBA { r, g, b, a: 1.0 };
+            cells[index] = RGBA { r, g, b, a: 1.0 };
         }
 
         Grid {

@@ -19,12 +19,12 @@ const GRID_DIMENSIONS: (usize, usize) = (512, 512);
 
 #[derive(Resource)]
 struct World {
-    grid: Grid<Cell>,
+    grid: Grid<RGBA>,
     entity: Option<Entity>,
 }
 
 fn create_grid_texture(
-    grid: &Grid<Cell>,
+    grid: &Grid<RGBA>,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
     images: &mut ResMut<Assets<Image>>,
@@ -35,17 +35,16 @@ fn create_grid_texture(
     for y in 0..grid.height {
         for x in 0..grid.width {
             let cell = &grid.get(x, y);
-            let color = cell.color;
             for ty in 0..TILE_SIZE as u32 {
                 for tx in 0..TILE_SIZE as u32 {
                     imgbuf.put_pixel(
                         x as u32 * TILE_SIZE as u32 + tx,
                         y as u32 * TILE_SIZE as u32 + ty,
                         image::Rgba([
-                            (color.r * 255.0) as u8,
-                            (color.g * 255.0) as u8,
-                            (color.b * 255.0) as u8,
-                            (color.a * 255.0) as u8,
+                            (cell.r * 255.0) as u8,
+                            (cell.g * 255.0) as u8,
+                            (cell.b * 255.0) as u8,
+                            (cell.a * 255.0) as u8,
                         ]),
                     );
                 }
