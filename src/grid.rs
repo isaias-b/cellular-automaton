@@ -186,54 +186,61 @@ impl Grid<Cell> {
 
     pub fn convolve_par(&mut self, kernel: &Kernel) {
         let kc = kernel.center();
+        let width = self.width;
+        let height = self.height;
 
-        let result: HashMap<usize, Cell> = (0..self.width * self.height)
-            .into_par_iter()
-            .fold(HashMap::new, |mut acc, index| {
-                let y = index / self.width;
-                let x = index % self.width;
-                let mut new_color = RGBA {
+        let mut new_cells = vec![
+            Cell {
+                color: RGBA {
                     r: 0.0,
                     g: 0.0,
                     b: 0.0,
-                    a: 0.0,
-                };
-                for k_index in 0..kernel.height * kernel.width {
-                    let kx = k_index % kernel.width;
-                    let ky = k_index / kernel.width;
-
-                    let dx = x as i32 + kx as i32 - kc.x as i32;
-                    let dy = y as i32 + ky as i32 - kc.y as i32;
-                    if dx < 0 || dy < 0 {
-                        continue;
-                    }
-                    if dx >= self.width as i32 || dy >= self.height as i32 {
-                        continue;
-                    }
-                    let cell = &self.get(dx as usize, dy as usize);
-                    let weight = kernel.cells[k_index];
-                    new_color.r += cell.color.r * weight;
-                    new_color.g += cell.color.g * weight;
-                    new_color.b += cell.color.b * weight;
-                    new_color.a += cell.color.a * weight;
+                    a: 0.0
                 }
-                let new_color = RGBA {
-                    r: new_color.r.clamp(0.0, 1.0),
-                    g: new_color.g.clamp(0.0, 1.0),
-                    b: new_color.b.clamp(0.0, 1.0),
-                    a: new_color.a.clamp(0.0, 1.0),
-                };
-                acc.insert(index, Cell { color: new_color });
-                acc
-            })
-            .reduce(HashMap::new, |mut acc, map| {
-                acc.extend(map);
-                acc
+            };
+            width * height
+        ];
+
+        new_cells
+            .par_chunks_mut(width)
+            .enumerate()
+            .for_each(|(y, row)| {
+                for x in 0..width {
+                    let mut new_color = RGBA {
+                        r: 0.0,
+                        g: 0.0,
+                        b: 0.0,
+                        a: 0.0,
+                    };
+
+                    for ky in 0..kernel.height {
+                        for kx in 0..kernel.width {
+                            let dx = x as isize + kx as isize - kc.x as isize;
+                            let dy = y as isize + ky as isize - kc.y as isize;
+
+                            if dx >= 0 && dx < width as isize && dy >= 0 && dy < height as isize {
+                                let cell = &self.get(dx as usize, dy as usize);
+                                let weight = kernel.cells[ky * kernel.width + kx];
+                                new_color.r += cell.color.r * weight;
+                                new_color.g += cell.color.g * weight;
+                                new_color.b += cell.color.b * weight;
+                                new_color.a += cell.color.a * weight;
+                            }
+                        }
+                    }
+
+                    row[x] = Cell {
+                        color: RGBA {
+                            r: new_color.r.clamp(0.0, 1.0),
+                            g: new_color.g.clamp(0.0, 1.0),
+                            b: new_color.b.clamp(0.0, 1.0),
+                            a: new_color.a.clamp(0.0, 1.0),
+                        },
+                    };
+                }
             });
 
-        for (index, cell) in result {
-            self.cells[index] = cell;
-        }
+        self.cells = new_cells;
     }
 
     pub fn convolve(&mut self, kernel: &Kernel) {
