@@ -15,29 +15,23 @@ use std::{collections::HashMap, time::Instant};
 
 const BG_COLOR: Color = Color::rgb(0.0, 0.0, 0.0);
 const TILE_SIZE: f32 = 8.0;
-const TILE_GAP: f32 = 2.0;
 const GRID_DIMENSIONS: (usize, usize) = (512, 512);
-
-macro_rules! color_from_hex {
-    ($hex:expr) => {
-        Color::rgb(
-            (($hex >> 16) & 0xFF) as f32 / 255.0,
-            (($hex >> 8) & 0xFF) as f32 / 255.0,
-            ($hex & 0xFF) as f32 / 255.0,
-        )
-    };
-}
 
 #[derive(Clone, Copy, Debug)]
 struct Cell {
-    color: Color,
+    color: RGBA,
 }
 
-#[derive(Resource)]
+#[derive(Resource, Clone)]
 struct Grid {
     width: usize,
     height: usize,
     cells: Vec<Cell>,
+}
+
+#[derive(Resource)]
+struct World {
+    grid: Grid,
     entity: Option<Entity>,
 }
 
@@ -104,10 +98,12 @@ impl Kernel {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 struct RGBA {
     r: f32,
     g: f32,
     b: f32,
+    a: f32,
 }
 
 impl Grid {
@@ -132,23 +128,31 @@ impl Grid {
         let (kernel_width, kernel_height) = (kernel.width, kernel.height);
         let padded_width = grid_width + kernel_width - 1;
         let padded_height = grid_height + kernel_height - 1;
-
+        let time = Instant::now();
         let mut planner = FftPlanner::new();
+        println!("Planner took {:?}", time.elapsed());
+        let time = Instant::now();
         let fft = planner.plan_fft_forward(padded_width * padded_height);
+        println!("FFT forward took {:?}", time.elapsed());
+        let time = Instant::now();
         let ifft = planner.plan_fft_inverse(padded_width * padded_height);
+        println!("FFT inverse took {:?}", time.elapsed());
 
+        let time = Instant::now();
         let mut grid_r = vec![Complex::zero(); padded_width * padded_height];
         let mut grid_g = vec![Complex::zero(); padded_width * padded_height];
         let mut grid_b = vec![Complex::zero(); padded_width * padded_height];
+        let mut grid_a = vec![Complex::zero(); padded_width * padded_height];
         let mut kernel_complex = vec![Complex::zero(); padded_width * padded_height];
 
         for y in 0..grid_height {
             for x in 0..grid_width {
                 let index = y * padded_width + x;
                 let color = self.get(x, y).color;
-                grid_r[index] = Complex::new(color.r(), 0.0);
-                grid_g[index] = Complex::new(color.g(), 0.0);
-                grid_b[index] = Complex::new(color.b(), 0.0);
+                grid_r[index] = Complex::new(color.r, 0.0);
+                grid_g[index] = Complex::new(color.g, 0.0);
+                grid_b[index] = Complex::new(color.b, 0.0);
+                grid_a[index] = Complex::new(color.a, 0.0);
             }
         }
 
@@ -158,21 +162,28 @@ impl Grid {
                 kernel_complex[index] = Complex::new(kernel.cells[y][x], 0.0);
             }
         }
-
+        println!("Preparation took {:?}", time.elapsed());
+        let time = Instant::now();
         fft.process(&mut grid_r);
         fft.process(&mut grid_g);
         fft.process(&mut grid_b);
+        fft.process(&mut grid_a);
         fft.process(&mut kernel_complex);
+        println!("FFT processing took {:?}", time.elapsed());
 
         for i in 0..padded_width * padded_height {
             grid_r[i] *= kernel_complex[i];
             grid_g[i] *= kernel_complex[i];
             grid_b[i] *= kernel_complex[i];
+            grid_a[i] *= kernel_complex[i];
         }
 
+        let time = Instant::now();
         ifft.process(&mut grid_r);
         ifft.process(&mut grid_g);
         ifft.process(&mut grid_b);
+        ifft.process(&mut grid_a);
+        println!("IFFT processing took {:?}", time.elapsed());
 
         let kernel_center = kernel.center();
         for y in 0..grid_height {
@@ -183,10 +194,13 @@ impl Grid {
                 let r_value = grid_r[index].re / (padded_width * padded_height) as f32;
                 let g_value = grid_g[index].re / (padded_width * padded_height) as f32;
                 let b_value = grid_b[index].re / (padded_width * padded_height) as f32;
+                let a_value = grid_a[index].re / (padded_width * padded_height) as f32;
+
                 let cell = self.get_mut(x, y);
-                cell.color.set_r(r_value.clamp(0.0, 1.0));
-                cell.color.set_g(g_value.clamp(0.0, 1.0));
-                cell.color.set_b(b_value.clamp(0.0, 1.0));
+                cell.color.r = r_value.clamp(0.0, 1.0);
+                cell.color.g = g_value.clamp(0.0, 1.0);
+                cell.color.b = b_value.clamp(0.0, 1.0);
+                cell.color.a = a_value.clamp(0.0, 1.0);
             }
         }
     }
@@ -203,6 +217,7 @@ impl Grid {
                     r: 0.0,
                     g: 0.0,
                     b: 0.0,
+                    a: 0.0,
                 };
                 for ky in 0..kernel.height {
                     for kx in 0..kernel.width {
@@ -216,17 +231,18 @@ impl Grid {
                         }
                         let cell = &self.get(dx as usize, dy as usize);
                         let weight = kernel.cells[ky][kx];
-                        new_color.r += cell.color.r() * weight;
-                        new_color.g += cell.color.g() * weight;
-                        new_color.b += cell.color.b() * weight;
+                        new_color.r += cell.color.r * weight;
+                        new_color.g += cell.color.g * weight;
+                        new_color.b += cell.color.b * weight;
+                        new_color.a += cell.color.a * weight;
                     }
                 }
-                let new_color = Color::rgba(
-                    new_color.r.clamp(0.0, 1.0),
-                    new_color.g.clamp(0.0, 1.0),
-                    new_color.b.clamp(0.0, 1.0),
-                    1.0,
-                );
+                let new_color = RGBA {
+                    r: new_color.r.clamp(0.0, 1.0),
+                    g: new_color.g.clamp(0.0, 1.0),
+                    b: new_color.b.clamp(0.0, 1.0),
+                    a: new_color.a.clamp(0.0, 1.0),
+                };
                 acc.insert(index, Cell { color: new_color });
                 acc
             })
@@ -251,6 +267,7 @@ impl Grid {
                     r: 0.0,
                     g: 0.0,
                     b: 0.0,
+                    a: 0.0,
                 };
                 for ky in 0..kernel.height {
                     for kx in 0..kernel.width {
@@ -264,13 +281,13 @@ impl Grid {
                         }
                         let cell = &self.get(dx as usize, dy as usize);
                         let weight = kernel.cells[ky][kx];
-                        new_color.r += cell.color.r() * weight;
-                        new_color.g += cell.color.g() * weight;
-                        new_color.b += cell.color.b() * weight;
+                        new_color.r += cell.color.r * weight;
+                        new_color.g += cell.color.g * weight;
+                        new_color.b += cell.color.b * weight;
                     }
                 }
                 let index = self.index(x, y);
-                new_cells[index].color = Color::rgba(new_color.r, new_color.g, new_color.b, 1.0);
+                new_cells[index].color = new_color;
             }
         }
         self.cells = new_cells;
@@ -287,7 +304,12 @@ impl Grid {
         let mut rng = ChaCha8Rng::from_seed([0; 32]);
         let mut cells = vec![
             Cell {
-                color: Color::BLACK,
+                color: RGBA {
+                    r: 0.0,
+                    g: 0.0,
+                    b: 0.0,
+                    a: 0.0,
+                }
             };
             width * height
         ];
@@ -296,119 +318,72 @@ impl Grid {
             let r = rng.gen_range(0..255) as f32 / 255.0;
             let g = rng.gen_range(0..255) as f32 / 255.0;
             let b = rng.gen_range(0..255) as f32 / 255.0;
-            cell.color = Color::rgb(r, g, b);
+            cell.color = RGBA { r, g, b, a: 1.0 };
         }
 
         Grid {
             width,
             height,
             cells,
-            entity: None,
         }
     }
-
-    fn spawn_ui_as_texture(
-        &mut self,
-        commands: &mut Commands,
-        meshes: &mut ResMut<Assets<Mesh>>,
-        materials: &mut ResMut<Assets<ColorMaterial>>,
-        images: &mut ResMut<Assets<Image>>,
-    ) {
-        let texture: Vec<u8> = self.as_large_texture();
-        let texture_handle = images.add(Image::new(
-            Extent3d {
-                width: self.width as u32 * TILE_SIZE as u32,
-                height: self.height as u32 * TILE_SIZE as u32,
-                depth_or_array_layers: 1,
-            },
-            TextureDimension::D2,
-            texture,
-            TextureFormat::Rgba8UnormSrgb,
-            RenderAssetUsages::RENDER_WORLD | RenderAssetUsages::MAIN_WORLD,
-        ));
-        let material_handle = materials.add(ColorMaterial {
-            texture: Some(texture_handle.clone()),
-            ..Default::default()
-        });
-
-        let shape = Mesh2dHandle(meshes.add(Rectangle::new(
-            self.width as f32 * TILE_SIZE,
-            self.height as f32 * TILE_SIZE,
-        )));
-        let square = MaterialMesh2dBundle {
-            mesh: shape,
-            material: material_handle,
-            transform: Transform::from_translation(Vec3::ZERO),
-            ..default()
-        };
-        self.entity = Some(commands.spawn(square).id());
-    }
-    fn as_large_texture(&mut self) -> Vec<u8> {
-        let pwidth = self.width * TILE_SIZE as usize;
-        let pheight = self.height * TILE_SIZE as usize;
-        let mut imgbuf = ImageBuffer::new(pwidth as u32, pheight as u32);
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let cell = &self.get(x, y);
-                let color = cell.color;
-                for ty in 0..TILE_SIZE as u32 {
-                    for tx in 0..TILE_SIZE as u32 {
-                        imgbuf.put_pixel(
-                            x as u32 * TILE_SIZE as u32 + tx,
-                            y as u32 * TILE_SIZE as u32 + ty,
-                            image::Rgba([
-                                (color.r() * 255.0) as u8,
-                                (color.g() * 255.0) as u8,
-                                (color.b() * 255.0) as u8,
-                                (color.a() * 255.0) as u8,
-                            ]),
-                        );
-                    }
+}
+fn create_grid_texture(
+    grid: &Grid,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+    images: &mut ResMut<Assets<Image>>,
+) -> MaterialMesh2dBundle<ColorMaterial> {
+    let pwidth = grid.width * TILE_SIZE as usize;
+    let pheight = grid.height * TILE_SIZE as usize;
+    let mut imgbuf = ImageBuffer::new(pwidth as u32, pheight as u32);
+    for y in 0..grid.height {
+        for x in 0..grid.width {
+            let cell = &grid.get(x, y);
+            let color = cell.color;
+            for ty in 0..TILE_SIZE as u32 {
+                for tx in 0..TILE_SIZE as u32 {
+                    imgbuf.put_pixel(
+                        x as u32 * TILE_SIZE as u32 + tx,
+                        y as u32 * TILE_SIZE as u32 + ty,
+                        image::Rgba([
+                            (color.r * 255.0) as u8,
+                            (color.g * 255.0) as u8,
+                            (color.b * 255.0) as u8,
+                            (color.a * 255.0) as u8,
+                        ]),
+                    );
                 }
             }
         }
-        imgbuf.into_raw()
     }
-
-    fn update_ui_as_texture(
-        &mut self,
-        commands: &mut Commands,
-        meshes: &mut ResMut<Assets<Mesh>>,
-        materials: &mut ResMut<Assets<ColorMaterial>>,
-        images: &mut ResMut<Assets<Image>>,
-    ) {
-        let texture: Vec<u8> = self.as_large_texture();
-        let texture_handle = images.add(Image::new(
-            Extent3d {
-                width: self.width as u32 * TILE_SIZE as u32,
-                height: self.height as u32 * TILE_SIZE as u32,
-                depth_or_array_layers: 1,
-            },
-            TextureDimension::D2,
-            texture,
-            TextureFormat::Rgba8UnormSrgb,
-            RenderAssetUsages::RENDER_WORLD | RenderAssetUsages::MAIN_WORLD,
-        ));
-        let material_handle = materials.add(ColorMaterial {
-            texture: Some(texture_handle.clone()),
-            ..Default::default()
-        });
-        let shape = Mesh2dHandle(meshes.add(Rectangle::new(
-            self.width as f32 * TILE_SIZE,
-            self.height as f32 * TILE_SIZE,
-        )));
-        let square = MaterialMesh2dBundle {
-            mesh: shape,
-            material: material_handle,
-            transform: Transform::from_translation(Vec3::ZERO),
-            ..default()
-        };
-
-        let entity = self.entity.unwrap();
-        commands.entity(entity).insert(square);
+    let texture: Vec<u8> = imgbuf.into_raw();
+    let texture_handle = images.add(Image::new(
+        Extent3d {
+            width: grid.width as u32 * TILE_SIZE as u32,
+            height: grid.height as u32 * TILE_SIZE as u32,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        texture,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::RENDER_WORLD | RenderAssetUsages::MAIN_WORLD,
+    ));
+    let material_handle = materials.add(ColorMaterial {
+        texture: Some(texture_handle.clone()),
+        ..Default::default()
+    });
+    let shape = Mesh2dHandle(meshes.add(Rectangle::new(
+        grid.width as f32 * TILE_SIZE,
+        grid.height as f32 * TILE_SIZE,
+    )));
+    MaterialMesh2dBundle {
+        mesh: shape,
+        material: material_handle,
+        transform: Transform::from_translation(Vec3::ZERO),
+        ..default()
     }
 }
-
 fn measure_frame_time(mut last_time: Local<Option<Instant>>) {
     let now = Instant::now();
     if let Some(last_time) = *last_time {
@@ -424,15 +399,24 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
 ) {
     commands.spawn(Camera2dBundle::default());
-    let mut world = Grid::new_random(GRID_DIMENSIONS.0, GRID_DIMENSIONS.1);
-
-    world.spawn_ui_as_texture(&mut commands, &mut meshes, &mut materials, &mut images);
-    commands.insert_resource(world);
+    let grid = Grid::new_random(GRID_DIMENSIONS.0, GRID_DIMENSIONS.1);
+    println!(
+        "Grid size: {}x{} = {} cells",
+        grid.width,
+        grid.height,
+        grid.width * grid.height
+    );
+    let square = create_grid_texture(&grid, &mut meshes, &mut materials, &mut images);
+    let entity = commands.spawn(square).id();
+    commands.insert_resource(World {
+        grid: grid,
+        entity: Some(entity),
+    });
 }
 
 fn handle_input(
     keys: Res<ButtonInput<KeyCode>>,
-    mut world: ResMut<Grid>,
+    mut world: ResMut<World>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -441,9 +425,11 @@ fn handle_input(
     if keys.just_pressed(KeyCode::Space) {
         let kernel = Kernel::gauss7();
         let time = Instant::now();
-        world.convolve_par(&kernel);
+        world.grid.convolve_fft(&kernel);
         println!("Convolution took {:?}", time.elapsed());
-        world.update_ui_as_texture(&mut commands, &mut meshes, &mut materials, &mut images);
+        let square = create_grid_texture(&world.grid, &mut meshes, &mut materials, &mut images);
+        let entity = world.entity.unwrap();
+        commands.entity(entity).insert(square);
     }
 }
 
