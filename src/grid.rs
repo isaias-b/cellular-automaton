@@ -26,6 +26,31 @@ pub struct Grid<Cell> {
 
 pub type Kernel = Grid<f32>;
 
+impl<Cell> Grid<Cell> {
+    #[inline(always)]
+    pub fn index(&self, x: usize, y: usize) -> usize {
+        y * self.width + x
+    }
+
+    #[inline(always)]
+    pub fn get(&self, x: usize, y: usize) -> &Cell {
+        &self.cells[self.index(x, y)]
+    }
+
+    #[inline(always)]
+    pub fn get_mut(&mut self, x: usize, y: usize) -> &mut Cell {
+        let index = self.index(x, y);
+        &mut self.cells[index]
+    }
+
+    pub fn center(&self) -> Center {
+        Center {
+            x: self.width / 2,
+            y: self.height / 2,
+        }
+    }
+}
+
 impl Kernel {
     pub fn gauss3() -> Kernel {
         #[rustfmt::skip]
@@ -72,39 +97,9 @@ impl Kernel {
             cells,
         }
     }
-
-    pub fn center(&self) -> Center {
-        Center {
-            x: self.width / 2,
-            y: self.height / 2,
-        }
-    }
 }
 
 impl Grid<RGBA> {
-    #[inline(always)]
-    pub fn index(&self, x: usize, y: usize) -> usize {
-        y * self.width + x
-    }
-
-    #[inline(always)]
-    pub fn get(&self, x: usize, y: usize) -> &RGBA {
-        &self.cells[self.index(x, y)]
-    }
-
-    #[inline(always)]
-    pub fn get_mut(&mut self, x: usize, y: usize) -> &mut RGBA {
-        let index = self.index(x, y);
-        &mut self.cells[index]
-    }
-
-    pub fn center(&self) -> Center {
-        Center {
-            x: self.width / 2,
-            y: self.height / 2,
-        }
-    }
-
     pub fn convolve_fft(&mut self, kernel: &Kernel) {
         let (grid_width, grid_height) = (self.width, self.height);
         let (kernel_width, kernel_height) = (kernel.width, kernel.height);
