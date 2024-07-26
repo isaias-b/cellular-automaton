@@ -19,12 +19,12 @@ const GRID_DIMENSIONS: (usize, usize) = (512, 512);
 
 #[derive(Resource)]
 struct World {
-    grid: Grid,
+    grid: Grid<Cell>,
     entity: Option<Entity>,
 }
 
 fn create_grid_texture(
-    grid: &Grid,
+    grid: &Grid<Cell>,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
     images: &mut ResMut<Assets<Image>>,

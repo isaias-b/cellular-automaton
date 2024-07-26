@@ -22,17 +22,13 @@ pub struct Center {
 }
 
 #[derive(Clone)]
-pub struct Grid {
+pub struct Grid<Cell> {
     pub width: usize,
     pub height: usize,
     pub cells: Vec<Cell>,
 }
 
-pub struct Kernel {
-    width: usize,
-    height: usize,
-    cells: Vec<f32>,
-}
+pub type Kernel = Grid<f32>;
 
 impl Kernel {
     pub fn gauss3() -> Kernel {
@@ -89,7 +85,7 @@ impl Kernel {
     }
 }
 
-impl Grid {
+impl Grid<Cell> {
     #[inline(always)]
     pub fn index(&self, x: usize, y: usize) -> usize {
         y * self.width + x
@@ -285,7 +281,7 @@ impl Grid {
         }
     }
 
-    pub fn new_random(width: usize, height: usize) -> Grid {
+    pub fn new_random(width: usize, height: usize) -> Grid<Cell> {
         let mut rng = ChaCha8Rng::from_seed([0; 32]);
         let mut cells = vec![
             Cell {
