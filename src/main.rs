@@ -1,4 +1,5 @@
 mod grid;
+mod kernel;
 
 use bevy::{
     prelude::*,
@@ -9,9 +10,10 @@ use bevy::{
     sprite::*,
 };
 use image::ImageBuffer;
+use kernel::*;
 use std::time::Instant;
 
-use crate::grid::*;
+use grid::*;
 
 const BG_COLOR: Color = Color::rgb(0.0, 0.0, 0.0);
 const TILE_SIZE: f32 = 8.0;
@@ -29,11 +31,11 @@ fn create_grid_texture(
     materials: &mut ResMut<Assets<ColorMaterial>>,
     images: &mut ResMut<Assets<Image>>,
 ) -> MaterialMesh2dBundle<ColorMaterial> {
-    let pwidth = grid.width * TILE_SIZE as usize;
-    let pheight = grid.height * TILE_SIZE as usize;
+    let pwidth = grid.width() * TILE_SIZE as usize;
+    let pheight = grid.height() * TILE_SIZE as usize;
     let mut imgbuf = ImageBuffer::new(pwidth as u32, pheight as u32);
-    for y in 0..grid.height {
-        for x in 0..grid.width {
+    for y in 0..grid.height() {
+        for x in 0..grid.width() {
             let cell = &grid.get(x, y);
             for ty in 0..TILE_SIZE as u32 {
                 for tx in 0..TILE_SIZE as u32 {
@@ -54,8 +56,8 @@ fn create_grid_texture(
     let texture: Vec<u8> = imgbuf.into_raw();
     let texture_handle = images.add(Image::new(
         Extent3d {
-            width: grid.width as u32 * TILE_SIZE as u32,
-            height: grid.height as u32 * TILE_SIZE as u32,
+            width: grid.width() as u32 * TILE_SIZE as u32,
+            height: grid.height() as u32 * TILE_SIZE as u32,
             depth_or_array_layers: 1,
         },
         TextureDimension::D2,
@@ -68,8 +70,8 @@ fn create_grid_texture(
         ..Default::default()
     });
     let shape = Mesh2dHandle(meshes.add(Rectangle::new(
-        grid.width as f32 * TILE_SIZE,
-        grid.height as f32 * TILE_SIZE,
+        grid.width() as f32 * TILE_SIZE,
+        grid.height() as f32 * TILE_SIZE,
     )));
     MaterialMesh2dBundle {
         mesh: shape,
@@ -96,9 +98,9 @@ fn setup(
     let grid = Grid::new_random(GRID_DIMENSIONS.0, GRID_DIMENSIONS.1);
     println!(
         "Grid size: {}x{} = {} cells",
-        grid.width,
-        grid.height,
-        grid.width * grid.height
+        grid.width(),
+        grid.height(),
+        grid.width() * grid.height()
     );
     let square = create_grid_texture(&grid, &mut meshes, &mut materials, &mut images);
     let entity = commands.spawn(square).id();
