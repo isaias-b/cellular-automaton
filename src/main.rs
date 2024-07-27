@@ -1,5 +1,7 @@
+#[macro_use]
 mod grid;
 mod kernel;
+mod rgba;
 
 use bevy::{
     prelude::*,
@@ -11,6 +13,7 @@ use bevy::{
 };
 use image::ImageBuffer;
 use kernel::*;
+use rgba::*;
 use std::time::Instant;
 
 use grid::*;
