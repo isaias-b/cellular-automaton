@@ -111,6 +111,30 @@ impl<Cell> Grid<Cell> {
     }
 
     #[inline(always)]
+    pub fn for_each_in_kernel(
+        &self,
+        kernel: &Kernel,
+        x: usize,
+        y: usize,
+        mut f: impl FnMut(usize, usize, usize, &Cell, &f32),
+    ) {
+        let kc = kernel.center();
+        for ky in 0..kernel.height() {
+            for kx in 0..kernel.width() {
+                let dx = x as isize + kx as isize - kc.x as isize;
+                let dy = y as isize + ky as isize - kc.y as isize;
+                if !self.raster.is_inside(dx, dy) {
+                    continue;
+                }
+                let index = self.index(dx as usize, dy as usize);
+                let cell = self.get(dx as usize, dy as usize);
+                let weight = kernel.get(kx, ky);
+                f(kx, ky, index, cell, weight);
+            }
+        }
+    }
+
+    #[inline(always)]
     pub fn get(&self, x: usize, y: usize) -> &Cell {
         &self.cells[self.index(x, y)]
     }
@@ -120,6 +144,27 @@ impl<Cell> Grid<Cell> {
         let index = self.index(x, y);
         &mut self.cells[index]
     }
+}
+
+macro_rules! convolve_kernel {
+    ($self:expr, $kernel:expr, $x:expr, $y:expr, $new_cell:expr) => {{
+        let kc = $kernel.center();
+        for ky in 0..$kernel.height() {
+            for kx in 0..$kernel.width() {
+                let dx = $x as isize + kx as isize - kc.x as isize;
+                let dy = $y as isize + ky as isize - kc.y as isize;
+                if !$self.raster.is_inside(dx, dy) {
+                    continue;
+                }
+                let neighbour = $self.get(dx as usize, dy as usize);
+                let weight = $kernel.cells[ky * $kernel.width() + kx];
+                $new_cell.r += neighbour.r * weight;
+                $new_cell.g += neighbour.g * weight;
+                $new_cell.b += neighbour.b * weight;
+                $new_cell.a += neighbour.a * weight;
+            }
+        }
+    }};
 }
 
 impl Grid<RGBA> {
@@ -202,7 +247,6 @@ impl Grid<RGBA> {
     }
 
     pub fn convolve_par(&mut self, kernel: &Kernel) {
-        let kc = kernel.center();
         let width = self.width();
         let height = self.height();
         let mut new_cells = vec![RGBA::ZERO; width * height];
@@ -214,22 +258,7 @@ impl Grid<RGBA> {
                 for x in 0..width {
                     let mut new_cell = RGBA::ZERO;
 
-                    for kx in 0..kernel.height() {
-                        for ky in 0..kernel.width() {
-                            let k_index = ky * kernel.width() + kx;
-                            let dx = x as isize + kx as isize - kc.x as isize;
-                            let dy = y as isize + ky as isize - kc.y as isize;
-                            if !self.raster.is_inside(dx, dy) {
-                                continue;
-                            }
-                            let neighbour = &self.get(dx as usize, dy as usize);
-                            let weight = kernel.cells[k_index];
-                            new_cell.r += neighbour.r * weight;
-                            new_cell.g += neighbour.g * weight;
-                            new_cell.b += neighbour.b * weight;
-                            new_cell.a += neighbour.a * weight;
-                        }
-                    }
+                    convolve_kernel!(self, kernel, x, y, new_cell);
 
                     row[x] = RGBA {
                         r: new_cell.r.clamp(0.0, 1.0),
@@ -244,29 +273,17 @@ impl Grid<RGBA> {
     }
 
     pub fn convolve(&mut self, kernel: &Kernel) {
-        let mut new_cells = self.cells.clone();
-        let kc = kernel.center();
-
-        self.for_each(|x, y, index| {
-            let mut new_cell = RGBA::ZERO;
-            for kx in 0..kernel.height() {
-                for ky in 0..kernel.width() {
-                    let k_index = ky * kernel.width() + kx;
-                    let dx = x as isize + kx as isize - kc.x as isize;
-                    let dy = y as isize + ky as isize - kc.y as isize;
-                    if !self.raster.is_inside(dx, dy) {
-                        continue;
-                    }
-                    let neighbour = &self.get(dx as usize, dy as usize);
-                    let weight = kernel.cells[k_index];
-                    new_cell.r += neighbour.r * weight;
-                    new_cell.g += neighbour.g * weight;
-                    new_cell.b += neighbour.b * weight;
-                    new_cell.a += neighbour.a * weight;
-                }
+        let width = self.width();
+        let height = self.height();
+        let mut new_cells = vec![RGBA::ZERO; width * height];
+        for y in 0..height {
+            for x in 0..width {
+                let mut new_cell = RGBA::ZERO;
+                convolve_kernel!(self, kernel, x, y, new_cell);
+                let index = self.index(x, y);
+                new_cells[index] = new_cell;
             }
-            new_cells[index] = new_cell;
-        });
+        }
         self.cells = new_cells;
     }
 
