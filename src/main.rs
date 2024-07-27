@@ -120,9 +120,7 @@ fn handle_input(
 ) {
     if keys.just_pressed(KeyCode::Space) {
         let kernel = Kernel::gauss7();
-        let time = Instant::now();
-        world.grid.convolve(&kernel);
-        println!("Convolution took {:?}", time.elapsed());
+        world.grid.convolve(&kernel, ParConvolver);
         let square = create_grid_texture(&world.grid, &mut meshes, &mut materials, &mut images);
         let entity = world.entity.unwrap();
         commands.entity(entity).insert(square);
